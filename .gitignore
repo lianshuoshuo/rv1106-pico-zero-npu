@@ -1,0 +1,35 @@
+# Build output
+build/
+dist/
+*.o
+*.a
+*.so
+*.elf
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+venv/
+.venv/
+
+# Logs
+logs/
+*.log
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Models (binary, usually large)
+*.rknn
+models/*.bin
+models/*.rknn
