@@ -7,6 +7,10 @@
 ```
 tools/
 ├── deploy.sh              # 一键部署脚本
+├── start_device.sh        # 设备端启动脚本
+├── install_service.sh     # systemd 服务安装脚本
+├── device_info.py         # 设备信息查看工具
+├── monitor.py             # 性能监控工具
 ├── test_rtsp.py           # RTSP 推流测试工具
 ├── test_mqtt.py           # MQTT 通信测试工具
 └── model_conversion/      # 模型转换工具
@@ -90,6 +94,110 @@ python3 test_mqtt.py --broker 192.168.1.100 --publish --duration 60
 ### 发布主题
 
 - `pet_feeder/cmd` — 控制指令
+
+## 设备信息查看
+
+查看 RV1106 设备的硬件和系统信息。
+
+### 使用方法
+
+```bash
+python3 device_info.py --host 192.168.1.100
+```
+
+### 显示信息
+
+- 系统信息（内核版本、运行时间）
+- CPU 信息（型号、频率）
+- 内存使用情况
+- 存储使用情况
+- 网络信息
+- 进程状态
+- 端口监听
+- CPU 温度
+- RKNN 驱动信息
+
+## 性能监控
+
+实时监控 RV1106 设备的性能指标。
+
+### 使用方法
+
+```bash
+# 实时监控（2秒刷新）
+python3 monitor.py --host 192.168.1.100
+
+# 自定义刷新间隔
+python3 monitor.py --host 192.168.1.100 --interval 5
+```
+
+### 监控指标
+
+- 系统 CPU 使用率
+- 内存使用率
+- pet_feeder 进程的 CPU/内存占用
+
+## 设备端启动脚本
+
+在 RV1106 设备上运行的启动脚本。
+
+### 使用方法
+
+```bash
+# 1. 上传脚本到设备
+scp start_device.sh root@192.168.1.100:/userdata/
+
+# 2. SSH 登录设备并运行
+ssh root@192.168.1.100
+cd /userdata
+chmod +x start_device.sh
+./start_device.sh
+```
+
+### 功能
+
+- 检查可执行文件是否存在
+- 检查并停止已运行的进程
+- 后台启动 pet_feeder
+- 生成日志文件
+
+## systemd 服务安装
+
+将 pet_feeder 安装为 systemd 系统服务（开机自启）。
+
+### 使用方法
+
+```bash
+# 1. 上传脚本到设备
+scp install_service.sh root@192.168.1.100:/tmp/
+
+# 2. SSH 登录设备并安装
+ssh root@192.168.1.100
+chmod +x /tmp/install_service.sh
+sudo /tmp/install_service.sh
+```
+
+### 服务管理
+
+```bash
+# 启动服务
+systemctl start pet-feeder
+
+# 停止服务
+systemctl stop pet-feeder
+
+# 重启服务
+systemctl restart pet-feeder
+
+# 查看状态
+systemctl status pet-feeder
+
+# 查看日志
+journalctl -u pet-feeder -f
+
+# 禁用自启
+systemctl disable pet-feeder
+```
 
 ## 模型转换
 
