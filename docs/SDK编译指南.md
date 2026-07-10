@@ -1,6 +1,6 @@
 # SDK 编译指南
 
-> 更新日期：2026-07-04  
+> 更新日期：2026-07-10  
 > 环境要求：Ubuntu 22.04 x86_64（原生，不支持虚拟机/WSL2 直接编译）
 
 ---
@@ -181,3 +181,72 @@ tar -xjvf dl.tar.bz2 -C luckfox-pico/sysdrv/source/buildroot/buildroot-2023.02.6
 ```
 
 > 编译过程中避免使用 `sudo`，否则文件权限变更会导致编译失败。
+
+---
+
+## 十、SDK 源码完整性说明（重要）
+
+Luckfox Pico SDK 是**混合形式**：部分内核子系统以预编译二进制提供，源码不完整。经 2026-07 实测，SDK 内约有 166 个源文件缺失（USB、MMC、netfilter 等子系统）。
+
+| 编译目标 | 可行性 | 说明 |
+|---------|--------|------|
+| DTB（设备树） | ✅ 完全可行 | DTS 源文件完整，可直接编译 |
+| 驱动模块（.ko） | ✅ 可行（特定模块） | gc2093.ko 等摄像头驱动可编译 |
+| 完整 kernel | ❌ 不可行 | 166+ 源文件缺失 |
+| 完整固件 | ❌ 不可行 | kernel 无法独立编译 |
+
+**结论**：需要自定义内核时，最大可达目标是编译 DTB + 单独驱动模块，然后打包进官方 boot.img。
+
+---
+
+## 十一、在 macOS 上编译 DTB（Docker 方案）
+
+macOS Apple Silicon 无法直接运行 x86_64 工具链，需要 Docker 加 `--platform linux/amd64`。
+
+> ⚠️ SDK 目录挂载在 macOS 卷（HFS+/APFS）时，部分内核 Makefile 目标因大小写不敏感而失败（见常见问题 Q15）。编译 DTB 本身不受影响，但编译完整 kernel 会报 `xt_HL.o` 等错误。
+
+### 11.1 编译 DTB
+
+```bash
+SDK_DIR="/Users/lss/Desktop/瑞芯微/rv1106/luckfox-pico-sdk"
+
+docker run --rm --platform linux/amd64 \
+  -v "$SDK_DIR:/sdk" \
+  ubuntu:22.04 bash -c "
+    apt-get update -qq && apt-get install -y -qq \
+      make gcc bc bison flex libssl-dev device-tree-compiler \
+      python3 python-is-python3 > /dev/null 2>&1
+    cd /sdk/sysdrv/source/kernel
+    make ARCH=arm luckfox_rv1106_linux_defconfig
+    make ARCH=arm rv1106g-luckfox-pico-zero.dtb -j\$(nproc)
+    cp arch/arm/boot/dts/rv1106g-luckfox-pico-zero.dtb /sdk/output_dtb.dtb
+    echo 'DTB size:' \$(stat -c%s /sdk/output_dtb.dtb) bytes
+  "
+```
+
+编译结果保存在 `$SDK_DIR/output_dtb.dtb`。
+
+### 11.2 实测产物（GC2093 DTS 修改后）
+
+```
+rv1106g-luckfox-pico-zero-gc2093.dtb  42729 bytes
+```
+
+> 此 DTB 比官方 boot.img 中的原始 DTB（39020 bytes）大 3709 bytes，无法用简单字节替换打入原始 FIT image，需要用 mkimage 重建 FIT（见常见问题 Q16）。
+
+### 11.3 当前 defconfig 中为绕过缺失源文件而禁用的配置
+
+编译 SDK 时若报 `No rule to make target`，需在 defconfig 中禁用以下配置：
+
+```bash
+# 在 SDK 目录内执行
+cd sysdrv/source/kernel
+./scripts/config --disable CONFIG_NETFILTER_XT_TARGET_DSCP
+./scripts/config --disable CONFIG_NETFILTER_XT_MATCH_DSCP
+./scripts/config --disable CONFIG_IP6_NF_MATCH_HL
+./scripts/config --disable CONFIG_IP6_NF_TARGET_HL
+./scripts/config --disable CONFIG_IP_NF_TARGET_TTL
+./scripts/config --disable CONFIG_IP_NF_MATCH_TTL
+```
+
+已提交到 `arch/arm/configs/luckfox_rv1106_linux_defconfig`。
